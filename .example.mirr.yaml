@@ -1,0 +1,62 @@
+# Copy to .mirr.yaml in a project and replace the example URLs and profile names.
+# Keep tokens outside this file. SSH endpoints use your system SSH configuration.
+version: 1
+
+credentials:
+  gitlab_source:
+    provider: env
+    variable: MIRR_GITLAB_TOKEN
+    username: oauth2
+  github:
+    provider: keyring
+    account: mirr-github
+    username: git
+  github_ci:
+    provider: env
+    variable: MIRR_GITHUB_TOKEN
+    username: git
+
+repositories:
+  app:
+    source:
+      url: https://gitlab.example.com/team/app.git
+      auth: gitlab_source
+    defaults:
+      mode: continuous # All branches and tags; sync still runs only on command.
+      policy:
+        delete: false
+        allow_force: false
+    mirrors:
+      github:
+        url: https://github.com/you/app.git
+        auth: github
+      gitlab_backup:
+        url: git@backup.example.com:team/app.git
+        mode: release # Only matching Git tags; release descriptions are not copied.
+        tags:
+          include: ['v*']
+          exclude: ['*-rc*', '*-beta*', '*-alpha*']
+
+  local_tool:
+    source:
+      url: ./local-tool # Relative to this config file, not the shell directory.
+    mirrors:
+      github_ssh:
+        url: git@github.com:you/local-tool.git
+        mode: continuous
+      gitlab_ssh:
+        url: ssh://git@gitlab.example.com:2222/team/local-tool.git
+        mode: release
+
+  # CI: inject both token variables as CI secrets, then run:
+  # mirr -c .mirr.yaml --non-interactive sync ci_service
+  ci_service:
+    source:
+      url: https://gitlab.example.com/team/ci-service.git
+      auth: gitlab_source
+    defaults:
+      mode: release
+    mirrors:
+      github:
+        url: https://github.com/you/ci-service.git
+        auth: github_ci

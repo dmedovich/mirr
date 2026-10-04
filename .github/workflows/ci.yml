@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Verify formatting
+        run: test -z "$(gofmt -l cmd internal)"
+      - name: Verify module checksums
+        run: go mod verify
+      - name: Test and vet
+        run: make check
+      - name: Release end-to-end
+        run: make e2e-release
