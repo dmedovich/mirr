@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -66,8 +67,8 @@ func root() *cobra.Command {
 	r.PersistentFlags().StringVar(&output, "output", "text", "Output format: text or json")
 	r.PersistentFlags().BoolVar(&nonInteractive, "non-interactive", false, "Disable interactive UI and prompts")
 	r.PersistentFlags().DurationVar(&timeout, "timeout", 5*time.Minute, "Timeout for CLI Git operations")
-	r.AddCommand(&cobra.Command{Use: "tui", Short: "Open the mirror dashboard", Args: cobra.NoArgs, RunE: tui})
-	r.AddCommand(&cobra.Command{Use: "validate", Short: "Validate config without contacting remotes", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	r.AddCommand(&cobra.Command{Use: "tui", Aliases: []string{"ui"}, Short: "Open the mirror dashboard", Args: cobra.NoArgs, RunE: tui})
+	r.AddCommand(&cobra.Command{Use: "validate", Aliases: []string{"check"}, Short: "Validate config without contacting remotes", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		if err := checkOutput(output); err != nil {
 			return err
 		}
@@ -83,7 +84,8 @@ func root() *cobra.Command {
 	}})
 	for _, verb := range []string{"plan", "status", "branches", "tags", "sync"} {
 		verb := verb
-		c := &cobra.Command{Use: verb + " [repository]", Short: map[string]string{"plan": "Preview Git changes", "status": "Inspect current remote state", "branches": "Compare source and mirror branches", "tags": "Compare source and mirror tags", "sync": "Synchronize configured mirrors"}[verb], Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		aliases := map[string][]string{"plan": {"p"}, "status": {"st"}, "branches": {"b"}, "tags": {"t"}, "sync": {"s"}}
+		c := &cobra.Command{Use: verb + " [repository]", Aliases: aliases[verb], Short: map[string]string{"plan": "Preview Git changes", "status": "Inspect current remote state", "branches": "Compare source and mirror branches", "tags": "Compare source and mirror tags", "sync": "Synchronize configured mirrors"}[verb], Args: cobra.MaximumNArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 			if err := checkOutput(output); err != nil {
 				return err
 			}
@@ -101,7 +103,13 @@ func root() *cobra.Command {
 					return fmt.Errorf("unknown repository %q", project)
 				}
 			} else if !all && verb == "sync" {
-				return fmt.Errorf("sync requires a repository or --all")
+				if len(cfg.Repositories) == 1 {
+					for name := range cfg.Repositories {
+						project = name
+					}
+				} else {
+					return fmt.Errorf("sync needs a repository name; choose one with 'mirr sync NAME' or use 'mirr sync --all'")
+				}
 			}
 			if verb == "sync" {
 				if _, err := readHistory(); err != nil {
@@ -171,6 +179,33 @@ func root() *cobra.Command {
 	}})
 	var source, mirror, name, mode string
 	initCmd := &cobra.Command{Use: "init", Short: "Create a config (never overwrites an existing file)", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+		if source == "" && mirror == "" && isTerminal(os.Stdin) {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return err
+			}
+			defaultName := filepath.Base(cwd)
+			if defaultName == "." || defaultName == string(filepath.Separator) || defaultName == "" {
+				defaultName = "my-project"
+			}
+			reader := bufio.NewReader(os.Stdin)
+			source, err = prompt(reader, "Source Git URL or local path", ".")
+			if err != nil {
+				return err
+			}
+			mirror, err = prompt(reader, "Mirror Git URL or local path", "")
+			if err != nil {
+				return err
+			}
+			name, err = prompt(reader, "Repository name", defaultName)
+			if err != nil {
+				return err
+			}
+			mode, err = prompt(reader, "Mode (release or continuous)", "release")
+			if err != nil {
+				return err
+			}
+		}
 		if source == "" || mirror == "" {
 			return fmt.Errorf("use mirr init --source URL --mirror URL [--name project] [--mode release|continuous]")
 		}
@@ -256,6 +291,28 @@ func checkOutput(output string) error {
 		return fmt.Errorf("output must be text or json")
 	}
 	return nil
+}
+
+func isTerminal(file *os.File) bool {
+	info, err := file.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
+}
+
+func prompt(reader *bufio.Reader, label, defaultValue string) (string, error) {
+	if defaultValue == "" {
+		fmt.Fprintf(os.Stderr, "%s: ", label)
+	} else {
+		fmt.Fprintf(os.Stderr, "%s [%s]: ", label, defaultValue)
+	}
+	value, err := reader.ReadString('\n')
+	if err != nil && len(value) == 0 {
+		return "", err
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		value = defaultValue
+	}
+	return value, nil
 }
 
 func printResults(rs []engine.Result) {

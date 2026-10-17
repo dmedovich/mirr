@@ -46,18 +46,18 @@ To build from source, you need Go 1.24.2 or newer and Git. Run `go install ./cmd
 
 | CLI | Action |
 | --- | --- |
-| `mirr init --source URL --mirror URL --name NAME` | Create `.mirr.yaml` without overwriting an existing file. |
+| `mirr init` | Guided setup for `.mirr.yaml` in a terminal. The flag-based form is also available. |
 | `mirr validate` | Validate the config without contacting Git servers. |
-| `mirr plan NAME` | Preview ref changes. |
+| `mirr plan NAME` / `mirr p NAME` | Preview ref changes. |
 | `mirr status` | Compare all configured mirrors. |
 | `mirr branches NAME` | Compare source and mirror branches and SHAs. |
 | `mirr tags NAME` | Compare source and mirror tags and SHAs. |
-| `mirr sync NAME` | Sync one repository; use `--to MIRROR` for one mirror or `--all` for all repositories. |
+| `mirr sync [NAME]` / `mirr s [NAME]` | Sync one repository; with one configured repository, the name is optional. Use `--to MIRROR` for one mirror or `--all` for all repositories. |
 | `mirr history` | Show the last recorded sync result for each mirror. |
 | `mirr auth set PROFILE` | Store an HTTPS token in the keyring. |
 | `mirr` or `mirr tui` | Open the TUI. |
 
-For scripts, use `--non-interactive`, `--output json`, and `--timeout 10m`. CLI `sync` recalculates the plan and is not bound to an earlier `plan` command. Exit codes: `0` success, `1` mirror error or conflict, `2` command or config error.
+Short aliases are available: `st` for `status`, `b` for `branches`, `t` for `tags`, and `check` for `validate`. For scripts, use `--non-interactive`, `--output json`, and `--timeout 10m`. CLI `sync` recalculates the plan and is not bound to an earlier `plan` command. Exit codes: `0` success, `1` mirror error or conflict, `2` command or config error.
 
 In the TUI, `j/k` or the arrow keys select a mirror. `b` shows branches and `t` shows tags; press the same key again to return to the plan. `r` refreshes, `s` syncs the selected mirror, `S` syncs all displayed mirrors, `m` changes a mirror's mode, `h` opens history, `?` shows all keys, and `q` quits. Sync requires confirmation. Before pushing, the TUI checks that the plan still matches what you reviewed.
 
@@ -75,8 +75,9 @@ In the TUI, `j/k` or the arrow keys select a mirror. `b` shows branches and `t` 
 From a repository that you want to use as the local source:
 
 ```sh
-mirr init --source . --mirror git@github.com:you/project.git \
-  --name project --mode continuous
+mirr init
+# Answer the setup questions, or use flags for scripted setup:
+# mirr init --source . --mirror git@github.com:you/project.git --name project --mode continuous
 mirr validate
 mirr plan project
 mirr
